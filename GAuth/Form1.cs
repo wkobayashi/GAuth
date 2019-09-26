@@ -1,5 +1,5 @@
 ﻿using System;
-using System.ComponentModel;
+using System.Drawing;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -8,28 +8,22 @@ namespace GAuth
     public partial class Form1 : Form
     {
 
+        private readonly string path;
+        private Json json = null;
         private string keyString = null;
         private string totp = null;
 
         public Form1()
         {
             InitializeComponent();
+            path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\GAuth\\GAuth.json";
         }
 
         private void Form1_Shown(object sender, EventArgs e)
         {
-            keyString = Properties.Settings.Default.Key;
-            if (keyString == string.Empty) keyString = "MFRGGZDFGAYTEMZU"; // abcde01234
-            toolStripTextBox1.Text = keyString;
-        }
-
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (toolStripMenuItem2.Checked)
-            {
-                Properties.Settings.Default.Key = keyString;
-                Properties.Settings.Default.Save();
-            }
+            json = Setting.readSetting(path);
+            keyString = (json.secret != string.Empty) ? Cryptograph.Decrypt(json.secret) : "MFRGGZDFGAYTEMZU"; // abcde01234
+            toolStripMenuItem2_Click(null, null);
         }
 
         private void timer1_Tick(object sender, EventArgs e)
@@ -72,48 +66,46 @@ namespace GAuth
             Text = nowText;
         }
 
-        private void label1_DoubleClick(object sender, EventArgs e)
+        private void label1_Click(object sender, EventArgs e)
         {
             Clipboard.SetText(label1.Text);
         }
 
-        private void contextMenuStrip1_Opening(object sender, CancelEventArgs e)
+        private void toolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            contextMenuStrip1.AutoClose = false;
             string s = toolStripTextBox1.Text;
             s = s.ToUpper().Replace(" ", "");
             toolStripTextBox1.Text = s;
             Regex rx = new Regex("^[" + Base32.base32Chars + "]{16}$");
             if (rx.IsMatch(s))
             {
-                toolStripMenuItem2.CheckState = CheckState.Checked;
+                toolStripMenuItem1.CheckState = CheckState.Checked;
                 keyString = s;
+                totp = null;
+                json.secret = Cryptograph.Encrypt(keyString);
+                Setting.writeSetting(path, json);
             }
             else
             {
-                toolStripMenuItem2.CheckState = CheckState.Unchecked;
-            }
-        }
-
-        private void toolStripMenuItem1_Click(object sender, EventArgs e)
-        {
-            Clipboard.SetText(label1.Text);
-            contextMenuStrip1.Close();
-        }
-
-        private void toolStripMenuItem2_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1_Opening(null, null);
-            if (toolStripMenuItem2.Checked)
-            {
-                contextMenuStrip1.Close();
-                totp = null;
+                toolStripMenuItem1.CheckState = CheckState.Unchecked;
+                toolStripTextBox1.BackColor = GRC.Design.MakeColorFromHSV(0, 1, 1);
             }
         }
 
         private void toolStripTextBox1_TextChanged(object sender, EventArgs e)
         {
-            toolStripMenuItem2.CheckState = CheckState.Indeterminate;
+            toolStripMenuItem1.CheckState = CheckState.Unchecked;
+            toolStripTextBox1.BackColor = SystemColors.Window;
+        }
+
+        private void toolStripMenuItem2_Click(object sender, EventArgs e)
+        {
+            if (toolStripMenuItem1.CheckState == CheckState.Unchecked)
+            {
+                toolStripTextBox1.Text = keyString;
+                toolStripMenuItem1.CheckState = CheckState.Checked;
+            }
+            contextMenuStrip1.Close();
         }
     }
 }
